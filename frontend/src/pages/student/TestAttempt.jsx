@@ -123,37 +123,49 @@ export default function TestAttempt() {
 
       if (rError) throw rError;
 
-      // Mark attempt as completed
+      // Mark attempt as completed (use 'completed' for both cases
+      // so the DB trigger fires and calculates the score server-side)
       const { error: aError } = await supabase
         .from('attempts')
         .update({
-          status: timedOut ? 'timed_out' : 'completed',
+          status: 'completed',
           end_time: new Date().toISOString(),
         })
         .eq('id', attemptId);
 
       if (aError) throw aError;
 
-      // Calculate score client-side and insert result
-      let correct = 0;
-      questions.forEach(q => {
-        const selectedOpt = answers[q.id];
-        if (selectedOpt) {
-          const option = q.options.find(o => o.id === selectedOpt);
-          if (option?.is_correct) correct++;
-        }
+      // Try server-side scoring first (DB trigger + RPC)
+      const { error: rpcError } = await supabase.rpc('calculate_test_score', {
+        p_attempt_id: attemptId,
       });
 
-      const total = questions.length;
-      const percentage = total > 0 ? Math.round((correct / total) * 100 * 100) / 100 : 0;
+      // If the RPC fails (function may not exist), fall back to client-side scoring
+      if (rpcError) {
+        console.warn('RPC calculate_test_score failed, using client-side scoring:', rpcError);
 
-      await supabase.from('results').insert({
-        attempt_id: attemptId,
-        total_questions: total,
-        correct_answers: correct,
-        score: correct,
-        percentage,
-      });
+        let correct = 0;
+        questions.forEach(q => {
+          const selectedOpt = answers[q.id];
+          if (selectedOpt) {
+            const option = q.options.find(o => o.id === selectedOpt);
+            if (option?.is_correct) correct++;
+          }
+        });
+
+        const total = questions.length;
+        const percentage = total > 0 ? Math.round((correct / total) * 100 * 100) / 100 : 0;
+
+        await supabase
+          .from('results')
+          .upsert({
+            attempt_id: attemptId,
+            total_questions: total,
+            correct_answers: correct,
+            score: correct,
+            percentage,
+          }, { onConflict: 'attempt_id' });
+      }
 
       toast.success(timedOut ? 'Time\'s up! Test submitted.' : 'Test submitted successfully!');
       navigate(`/student/result/${attemptId}`);

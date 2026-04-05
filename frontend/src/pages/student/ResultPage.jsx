@@ -22,30 +22,65 @@ export default function ResultPage() {
   const fetchResult = async () => {
     try {
       // Fetch attempt with test details
-      const { data: attemptData } = await supabase
+      const { data: attemptData, error: attemptError } = await supabase
         .from('attempts')
         .select('*, tests(title, subjects(name))')
         .eq('id', attemptId)
         .single();
 
+      if (attemptError) {
+        console.error('Error fetching attempt:', attemptError);
+      }
       setAttempt(attemptData);
 
+      // Fetch responses with question and option details
+      const { data: responsesData, error: responsesError } = await supabase
+        .from('responses')
+        .select('*, questions(question_text, options(*))')
+        .eq('attempt_id', attemptId);
+
+      if (responsesError) {
+        console.error('Error fetching responses:', responsesError);
+      }
+      setResponses(responsesData || []);
+
       // Fetch result
-      const { data: resultData } = await supabase
+      const { data: resultData, error: resultError } = await supabase
         .from('results')
         .select('*')
         .eq('attempt_id', attemptId)
         .single();
 
-      setResult(resultData);
+      if (resultError) {
+        console.error('Error fetching result:', resultError);
+      }
 
-      // Fetch responses with question and option details
-      const { data: responsesData } = await supabase
-        .from('responses')
-        .select('*, questions(question_text, options(*))')
-        .eq('attempt_id', attemptId);
+      console.log('Fetch Result Data:', { attemptData, responsesData, resultData });
 
-      setResponses(responsesData || []);
+      // If no result row exists (trigger/RPC didn't create one),
+      // calculate the score client-side from the responses
+      if (!resultData && responsesData && responsesData.length > 0) {
+        console.log('Calculating results client-side...');
+        let correct = 0;
+        const total = responsesData.length;
+        responsesData.forEach(r => {
+          const options = r.questions?.options || [];
+          const selectedOpt = options.find(o => o.id === r.selected_option);
+          if (selectedOpt?.is_correct) correct++;
+        });
+        const percentage = total > 0
+          ? Math.round((correct / total) * 100 * 100) / 100
+          : 0;
+
+        setResult({
+          total_questions: total,
+          correct_answers: correct,
+          score: correct,
+          percentage,
+        });
+      } else {
+        setResult(resultData);
+      }
     } catch (err) {
       toast.error('Failed to load results');
       console.error(err);
@@ -58,13 +93,18 @@ export default function ResultPage() {
     return <div className="loading-screen" style={{ minHeight: '60vh' }}><div className="spinner" /></div>;
   }
 
-  if (!attempt || !result) {
+  if (!attempt) {
     return (
       <div className="empty-state">
-        <div className="empty-state-title">Result not found</div>
+        <div className="empty-state-title">Attempt not found</div>
         <Link to="/student" className="btn btn-primary" style={{ marginTop: 'var(--space-lg)' }}>Back to Dashboard</Link>
       </div>
     );
+  }
+
+  // If we have an attempt but no result (and fallback failed), show a loading or placeholder state
+  if (!result && !responses.length) {
+    return <div className="loading-screen" style={{ minHeight: '60vh' }}><div className="spinner" /></div>;
   }
 
   const percentage = result.percentage || 0;
@@ -85,7 +125,7 @@ export default function ResultPage() {
         border: `1px solid ${passed ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
       }}>
         <h1 style={{ fontSize: 'var(--font-size-4xl)', fontWeight: 800, marginBottom: 'var(--space-sm)' }}>
-          {test?.title || attempt?.tests?.title}
+          {attempt?.tests?.title || 'Test Details'}
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-xl)' }}>
           {attempt?.tests?.subjects?.name}

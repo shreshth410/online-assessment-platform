@@ -42,7 +42,7 @@ export default function TestResults() {
         .from('attempts')
         .select('*, users(name, email), results(*)')
         .eq('test_id', selectedTest)
-        .eq('status', 'completed')
+        .in('status', ['completed', 'timed_out'])
         .order('score', { ascending: false });
 
       if (error) throw error;
@@ -52,14 +52,17 @@ export default function TestResults() {
     }
   };
 
+  // Helper: Supabase may return results as object (1-to-1) or array
+  const getResult = (r) => Array.isArray(r.results) ? r.results[0] : r.results;
+
   const avgPercentage = results.length > 0
-    ? (results.reduce((s, r) => s + (r.results?.[0]?.percentage || 0), 0) / results.length).toFixed(1)
+    ? (results.reduce((s, r) => s + (getResult(r)?.percentage || 0), 0) / results.length).toFixed(1)
     : 0;
   const maxScore = results.length > 0
-    ? Math.max(...results.map(r => r.results?.[0]?.percentage || 0))
+    ? Math.max(...results.map(r => getResult(r)?.percentage || 0))
     : 0;
   const minScore = results.length > 0
-    ? Math.min(...results.map(r => r.results?.[0]?.percentage || 0))
+    ? Math.min(...results.map(r => getResult(r)?.percentage || 0))
     : 0;
 
   if (loading) {
@@ -128,7 +131,7 @@ export default function TestResults() {
               </thead>
               <tbody>
                 {results.map((r, i) => {
-                  const result = r.results?.[0];
+                  const result = Array.isArray(r.results) ? r.results[0] : r.results;
                   return (
                     <tr key={r.id}>
                       <td style={{ fontWeight: 700, color: i < 3 ? 'var(--color-warning)' : 'var(--color-text-secondary)' }}>

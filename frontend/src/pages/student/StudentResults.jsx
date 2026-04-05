@@ -22,7 +22,7 @@ export default function StudentResults() {
         .from('attempts')
         .select('*, tests(title, subjects(name)), results(*)')
         .eq('user_id', profile.id)
-        .eq('status', 'completed')
+        .in('status', ['completed', 'timed_out'])
         .order('end_time', { ascending: false });
 
       setAttempts(data || []);
@@ -72,7 +72,7 @@ export default function StudentResults() {
             </thead>
             <tbody>
               {attempts.map(a => {
-                const result = a.results?.[0];
+                const result = Array.isArray(a.results) ? a.results[0] : a.results;
                 const pct = result?.percentage || 0;
                 return (
                   <tr key={a.id}>

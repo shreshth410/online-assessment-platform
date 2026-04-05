@@ -31,7 +31,7 @@ export default function StudentDashboard() {
         .from('attempts')
         .select('*, tests(title, subjects(name)), results(*)')
         .eq('user_id', profile.id)
-        .eq('status', 'completed')
+        .in('status', ['completed', 'timed_out'])
         .order('end_time', { ascending: false });
 
       setCompletedAttempts(attempts || []);
@@ -57,16 +57,19 @@ export default function StudentDashboard() {
       const { data: tests } = await query.order('created_at', { ascending: false });
       setAvailableTests((tests || []).filter(t => t.test_questions?.length > 0));
 
+      // Helper: Supabase may return results as object (1-to-1) or array
+      const getResult = (a) => Array.isArray(a.results) ? a.results[0] : a.results;
+
       // Stats
       const completed = attempts || [];
       const avgScore = completed.length > 0
-        ? (completed.reduce((s, a) => s + (a.results?.[0]?.percentage || 0), 0) / completed.length).toFixed(1)
+        ? (completed.reduce((s, a) => s + (getResult(a)?.percentage || 0), 0) / completed.length).toFixed(1)
         : 0;
 
       setStats({
         testsCompleted: completed.length,
         averageScore: avgScore,
-        bestScore: completed.length > 0 ? Math.max(...completed.map(a => a.results?.[0]?.percentage || 0)) : 0,
+        bestScore: completed.length > 0 ? Math.max(...completed.map(a => getResult(a)?.percentage || 0)) : 0,
         availableCount: (tests || []).filter(t => t.test_questions?.length > 0).length,
       });
     } catch (err) {
@@ -164,7 +167,7 @@ export default function StudentDashboard() {
             </thead>
             <tbody>
               {completedAttempts.map(a => {
-                const result = a.results?.[0];
+                const result = Array.isArray(a.results) ? a.results[0] : a.results;
                 return (
                   <tr key={a.id}>
                     <td style={{ fontWeight: 600 }}>{a.tests?.title}</td>
