@@ -12,4 +12,27 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 🔥 Create client with auto session handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
+
+// 🚀 FIX: Clear invalid/stale sessions automatically
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    await supabase.auth.signOut(); // clears bad cached session
+  }
+})();
+
+// 🔄 Listen for auth state changes (extra safety)
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    localStorage.clear(); // remove broken tokens
+  }
+});
