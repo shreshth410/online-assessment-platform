@@ -13,6 +13,8 @@ import PendingApproval from './pages/auth/PendingApproval';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import SubjectManagement from './pages/admin/SubjectManagement';
 
 // Instructor pages
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
