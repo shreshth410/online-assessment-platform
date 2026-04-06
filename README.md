@@ -1,4 +1,4 @@
-# AssessHub — Online Assessment & Evaluation Platform
+# SOTS — Structured Online Testing System
 
 A full-stack, database-driven web application that demonstrates practical DBMS concepts including SQL, integrity constraints, relational schema design, normalization, complex queries, stored procedures, cursors, triggers, and ER modeling.
 
